@@ -1,0 +1,315 @@
+<html><head><base href="CTCC O"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Block Space Odyssey</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+<style>
+body { margin: 0; overflow: hidden; font-family: 'Courier New', monospace; background-color: #000; color: #ff8c00; }
+canvas { display: block; }
+#hud {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  pointer-events: none;
+  font-family: 'Courier New', monospace;
+}
+.hud-section {
+  background: rgba(255,140,0,0.1);
+  border: 1px solid #ff8c00;
+  border-radius: 10px;
+  padding: 15px;
+  color: #ff8c00;
+  text-shadow: 0 0 5px #ff8c00;
+}
+#speedometer {
+  font-size: 24px;
+  font-weight: bold;
+}
+#controls {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(255,140,0,0.1);
+  border: 1px solid #ff8c00;
+  padding: 10px;
+  border-radius: 5px;
+  color: #ff8c00;
+}
+#speedControl {
+  width: 200px;
+  -webkit-appearance: none;
+  background: #000;
+  outline: none;
+  opacity: 0.7;
+  transition: opacity .2s;
+}
+#speedControl:hover {
+  opacity: 1;
+}
+#speedControl::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 25px;
+  height: 25px;
+  background: #ff8c00;
+  cursor: pointer;
+  border-radius: 50%;
+}
+#speedControl::-moz-range-thumb {
+  width: 25px;
+  height: 25px;
+  background: #ff8c00;
+  cursor: pointer;
+  border-radius: 50%;
+}
+#directionControls {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+.direction-btn {
+  background: #ff8c00;
+  color: #000;
+  border: none;
+  padding: 10px;
+  margin: 0 5px;
+  cursor: pointer;
+  border-radius: 5px;
+  font-weight: bold;
+}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="hud-section">
+    <div id="speedometer"></div>
+  </div>
+</div>
+<div id="controls">
+  <input type="range" id="speedControl" min="0" max="100" value="50" step="1">
+  <div id="directionControls">
+    <button class="direction-btn" id="leftBtn">←</button>
+    <button class="direction-btn" id="upBtn">↑</button>
+    <button class="direction-btn" id="downBtn">↓</button>
+    <button class="direction-btn" id="rightBtn">→</button>
+  </div>
+</div>
+<script>
+// Initialize Three.js scene
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Create starfield
+const starsGeometry = new THREE.BufferGeometry();
+const starsMaterial = new THREE.PointsMaterial({color: 0xffffff, size: 0.1});
+
+const starsVertices = [];
+for (let i = 0; i < 10000; i++) {
+  const x = (Math.random() - 0.5) * 2000;
+  const y = (Math.random() - 0.5) * 2000;
+  const z = (Math.random() - 0.5) * 2000;
+  starsVertices.push(x, y, z);
+}
+
+starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
+const starField = new THREE.Points(starsGeometry, starsMaterial);
+scene.add(starField);
+
+// Create blockchain cubes
+const blockchainCubes = [];
+const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+const cubeMaterial = new THREE.MeshPhongMaterial({color: 0xff8c00, transparent: true, opacity: 0.7});
+
+function createBlockchainCube() {
+  const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+  cube.position.set(
+    (Math.random() - 0.5) * 100,
+    (Math.random() - 0.5) * 100,
+    Math.random() * -1000
+  );
+  scene.add(cube);
+  blockchainCubes.push(cube);
+}
+
+for (let i = 0; i < 1000; i++) {
+  createBlockchainCube();
+}
+
+// Create data stream particles
+const particlesGeometry = new THREE.BufferGeometry();
+const particlesMaterial = new THREE.PointsMaterial({color: 0xff8c00, size: 0.1});
+
+const particlesVertices = [];
+for (let i = 0; i < 10000; i++) {
+  const x = (Math.random() - 0.5) * 100;
+  const y = (Math.random() - 0.5) * 100;
+  const z = Math.random() * -1000;
+  particlesVertices.push(x, y, z);
+}
+
+particlesGeometry.setAttribute('position', new THREE.Float32BufferAttribute(particlesVertices, 3));
+const particles = new THREE.Points(particlesGeometry, particlesMaterial);
+scene.add(particles);
+
+// Add lighting
+const ambientLight = new THREE.AmbientLight(0x404040);
+scene.add(ambientLight);
+
+const directionalLight = new THREE.DirectionalLight(0xff8c00, 0.5);
+directionalLight.position.set(1, 1, 1);
+scene.add(directionalLight);
+
+// Set up camera
+camera.position.z = 5;
+
+// Animation variables
+let speed = 0.5;
+const maxSpeed = 2;
+const acceleration = 0.01;
+
+// Direction variables
+let directionX = 0;
+let directionY = 0;
+const directionSpeed = 0.05;
+
+// Speed control
+const speedControl = document.getElementById('speedControl');
+const speedometer = document.getElementById('speedometer');
+
+speedControl.addEventListener('input', function() {
+  speed = this.value / 50; // Convert to a reasonable speed range
+});
+
+// Direction controls
+const leftBtn = document.getElementById('leftBtn');
+const rightBtn = document.getElementById('rightBtn');
+const upBtn = document.getElementById('upBtn');
+const downBtn = document.getElementById('downBtn');
+
+leftBtn.addEventListener('mousedown', () => directionX = -directionSpeed);
+leftBtn.addEventListener('mouseup', () => directionX = 0);
+leftBtn.addEventListener('mouseleave', () => directionX = 0);
+
+rightBtn.addEventListener('mousedown', () => directionX = directionSpeed);
+rightBtn.addEventListener('mouseup', () => directionX = 0);
+rightBtn.addEventListener('mouseleave', () => directionX = 0);
+
+upBtn.addEventListener('mousedown', () => directionY = directionSpeed);
+upBtn.addEventListener('mouseup', () => directionY = 0);
+upBtn.addEventListener('mouseleave', () => directionY = 0);
+
+downBtn.addEventListener('mousedown', () => directionY = -directionSpeed);
+downBtn.addEventListener('mouseup', () => directionY = 0);
+downBtn.addEventListener('mouseleave', () => directionY = 0);
+
+// Keyboard controls
+document.addEventListener('keydown', (event) => {
+  switch(event.key) {
+    case 'ArrowLeft':
+      directionX = -directionSpeed;
+      break;
+    case 'ArrowRight':
+      directionX = directionSpeed;
+      break;
+    case 'ArrowUp':
+      directionY = directionSpeed;
+      break;
+    case 'ArrowDown':
+      directionY = -directionSpeed;
+      break;
+  }
+});
+
+document.addEventListener('keyup', (event) => {
+  switch(event.key) {
+    case 'ArrowLeft':
+    case 'ArrowRight':
+      directionX = 0;
+      break;
+    case 'ArrowUp':
+    case 'ArrowDown':
+      directionY = 0;
+      break;
+  }
+});
+
+// Ambient sound
+let ambientSound;
+
+function initAmbientSound() {
+  ambientSound = new Howl({
+    src: ['https://infinitetrip.com/audio/space_ambient.mp3'],
+    loop: true,
+    volume: 0.5
+  });
+  ambientSound.play();
+}
+
+// Initialize ambient sound
+initAmbientSound();
+
+// Speed descriptions
+const speedDescriptions = [
+  "Crawling through the blockchain",
+  "Gentle drift in the Bitcoin stream",
+  "Cruising the crypto-cosmos",
+  "Accelerating through the ledger",
+  "Warp speed in the Bitcoin universe"
+];
+
+// Animation loop
+function animate() {
+  requestAnimationFrame(animate);
+
+  // Move the camera forward to simulate space travel
+  camera.position.z -= speed;
+
+  // Apply directional movement
+  camera.position.x += directionX;
+  camera.position.y += directionY;
+
+  // Rotate blockchain cubes
+  blockchainCubes.forEach(cube => {
+    cube.rotation.x += 0.01;
+    cube.rotation.y += 0.01;
+    if (cube.position.z > camera.position.z) {
+      cube.position.z -= 1000;
+    }
+  });
+
+  // Move data stream particles
+  const positions = particles.geometry.attributes.position.array;
+  for (let i = 0; i < positions.length; i += 3) {
+    positions[i + 2] += speed;
+    if (positions[i + 2] > camera.position.z) {
+      positions[i + 2] -= 1000;
+    }
+  }
+  particles.geometry.attributes.position.needsUpdate = true;
+
+  // Update HUD
+  const speedIndex = Math.min(Math.floor(speed * 2.5), speedDescriptions.length - 1);
+  speedometer.textContent = speedDescriptions[speedIndex];
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// Handle window resizing
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Start the animation loop
+animate();
+</script>
+</body>
+</html>
